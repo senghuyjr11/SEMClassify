@@ -1,0 +1,8 @@
+torch~=2.0.1+cu117
+torchvision~=0.15.2+cu117
+numpy~=1.26.4
+scikit-learn~=1.6.1
+matplotlib~=3.10.1
+opencv-python~=4.11.0.86
+pillow~=11.1.0
+python-pptx~=1.0.2
