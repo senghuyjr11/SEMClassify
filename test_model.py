@@ -1,11 +1,10 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from PIL import Image
-from torchvision import models, transforms
-import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import torch.nn as nn
+from PIL import Image
+from torchvision import models, transforms
 
 # Device configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

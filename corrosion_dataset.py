@@ -1,9 +1,10 @@
-import torch
+import glob
+import os
+
+from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
-from PIL import Image
-import os
-import glob  # ✅ Allows searching for images in subdirectories
+
 
 class CorrosionSegmentationDataset(Dataset):
     def __init__(self, image_dir, mask_dir, transform=None):
