@@ -27,16 +27,16 @@ fine_tuned_model.eval()
 
 # Define image preprocessing (must match training preprocessing)
 image_transform = transforms.Compose([
-    transforms.Grayscale(num_output_channels=3),
+    transforms.Grayscale(num_output_channels=3),  # Convert grayscale to 3 channels
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
 ])
 
 
-# Function to predict a single image
+# ✅ Function to Predict a Single Image
 def predict_image(image_path):
-    image = Image.open(image_path).convert("L")  # Convert to grayscale
+    image = Image.open(image_path).convert("RGB")  # Keep as RGB (3 channels)
     image = image_transform(image).unsqueeze(0).to(device)  # Add batch dimension
 
     with torch.no_grad():
@@ -55,53 +55,68 @@ def predict_image(image_path):
     print(f"Predicted Class: {predicted_label}")
 
 
-# Function to generate Grad-CAM visualization
-# Function to generate Grad-CAM visualization
-def generate_gradcam(image_path, model, target_layer="layer4"):  # Updated target layer
-    image = Image.open(image_path).convert("RGB")  # Convert to RGB
+# ✅ Function to Generate Grad-CAM Visualization
+def generate_gradcam(image_path, model, target_layer="layer4"):
+    """
+    Generate Grad-CAM heatmap for model explainability.
+    """
+    model.eval()
+
+    # Load and preprocess the image
+    image = Image.open(image_path).convert("RGB")
     image_tensor = image_transform(image).unsqueeze(0).to(device)
 
-    # Extract gradients and activations
-    gradients = None
-    activation = None
+    # Ensure CUDA context is set before forward pass
+    _ = model(torch.zeros((1, 3, 224, 224), device=device))
+
+    # Initialize storage for activations & gradients
+    activations = []
+    gradients = []
+
+    # Define forward and backward hooks
+    def forward_hook(module, input, output):
+        activations.append(output)
 
     def backward_hook(module, grad_in, grad_out):
-        nonlocal gradients
-        gradients = grad_out[0]  # Save gradients
+        gradients.append(grad_out[0])
 
-    def forward_hook(module, input, output):
-        nonlocal activation
-        activation = output  # Save activations
-
-    # Register hooks
+    # Attach hooks to the correct layer
     for name, module in model.named_modules():
         if name == target_layer:
             module.register_forward_hook(forward_hook)
             module.register_full_backward_hook(backward_hook)
 
-    # Forward pass through the model
-    model.zero_grad()
+    # **Forward pass**
     outputs = model(image_tensor)
     _, predicted_class = outputs.max(1)
 
-    # Backward pass to get gradients
-    one_hot_output = torch.zeros(outputs.shape).to(device)
-    one_hot_output[0][predicted_class] = 1
-    outputs.backward(gradient=one_hot_output)
-
-    # Ensure gradients and activations are captured
-    if gradients is None or activation is None:
-        print("Error: Gradients or activations not captured. Check the target layer name.")
+    # **Ensure hook captured activations**
+    if not activations:
+        print(f"Error: No activations captured for layer '{target_layer}'. Check layer name.")
         return
 
-    # Compute Grad-CAM
-    pooled_gradients = torch.mean(gradients, dim=[0, 2, 3])
+    activation = activations[0]
+
+    # **Backward pass to get gradients**
+    model.zero_grad()
+    one_hot_output = torch.zeros_like(outputs).to(device)
+    one_hot_output[0, predicted_class] = 1
+    outputs.backward(gradient=one_hot_output)
+
+    # **Ensure hook captured gradients**
+    if not gradients:
+        print(f"Error: No gradients captured for layer '{target_layer}'. Check layer name.")
+        return
+
+    gradient = gradients[0]
+
+    # Compute Grad-CAM heatmap
+    pooled_gradients = torch.mean(gradient, dim=[0, 2, 3])
     for i in range(activation.shape[1]):
         activation[:, i, :, :] *= pooled_gradients[i]
-    # heatmap = torch.mean(activation, dim=1).squeeze().cpu().numpy()
-    heatmap = torch.mean(activation, dim=1).squeeze().detach().cpu().numpy()
 
-    heatmap = np.maximum(heatmap, 0)  # ReLU
+    heatmap = torch.mean(activation, dim=1).squeeze().detach().cpu().numpy()
+    heatmap = np.maximum(heatmap, 0)  # Apply ReLU
     heatmap /= np.max(heatmap)  # Normalize
 
     # Convert heatmap to image
@@ -118,6 +133,7 @@ def generate_gradcam(image_path, model, target_layer="layer4"):  # Updated targe
 
     # Show images
     plt.figure(figsize=(10, 5))
+
     plt.subplot(1, 2, 1)
     plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     plt.title("Original Image")
@@ -134,6 +150,6 @@ def generate_gradcam(image_path, model, target_layer="layer4"):  # Updated targe
 
 if __name__ == "__main__":
     # Test the model with a sample image
-    sample_image_path = "dataset/an_180/7days/Img_Slide12_No4.png"
+    sample_image_path = "dataset/an_180/7days/Img_Slide12_No5.png"
     predict_image(sample_image_path)
     generate_gradcam(sample_image_path, fine_tuned_model)
