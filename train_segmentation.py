@@ -15,7 +15,7 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     # ✅ Reduce num_workers to prevent crashing
-    BATCH_SIZE = 8  # For GTX 1070
+    BATCH_SIZE = 16
     NUM_WORKERS = 2  # ✅ Reduce for stability (or set to 0 if still crashing)
     GRAD_ACCUM_STEPS = 2  # ✅ Gradient accumulation
 
