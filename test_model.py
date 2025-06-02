@@ -14,13 +14,20 @@ print(f"Using device: {device}")
 class_labels = ["Low Corrosion", "Moderate Corrosion", "Severe Corrosion"]
 
 # Load the trained fine-tuned model
-model_path = "resnet50_finetuned.pth"
-fine_tuned_model = models.resnet50(pretrained=False)
-num_ftrs = fine_tuned_model.fc.in_features
-fine_tuned_model.fc = nn.Sequential(
-    nn.Dropout(0.5),  # Ensure same dropout as training
-    nn.Linear(num_ftrs, len(class_labels))
+model_path = "model/efficientnet_b0_finetuned.pth"
+
+from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
+
+fine_tuned_model = efficientnet_b0(weights=None)  # no pretrained weights here, we load ours
+
+# Match architecture used in training
+in_features = fine_tuned_model.classifier[1].in_features
+fine_tuned_model.classifier[1] = nn.Sequential(
+    nn.Dropout(0.5),
+    nn.Linear(in_features, len(class_labels))
 )
+
+
 fine_tuned_model.load_state_dict(torch.load(model_path, map_location=device))
 fine_tuned_model = fine_tuned_model.to(device)
 fine_tuned_model.eval()
@@ -54,9 +61,11 @@ def predict_image(image_path):
 
     print(f"Predicted Class: {predicted_label}")
 
+for name, module in fine_tuned_model.named_modules():
+    print(name)
 
 # ✅ Function to Generate Grad-CAM Visualization
-def generate_gradcam(image_path, model, target_layer="layer4"):
+def generate_gradcam(image_path, model, target_layer="features.7.0.block.3.1"):
     """
     Generate Grad-CAM heatmap for model explainability.
     """
